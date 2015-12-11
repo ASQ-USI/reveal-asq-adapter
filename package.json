@@ -1,0 +1,15 @@
+{
+  "name": "reveal-asq-fork-adapter",
+  "version": "0.0.1",
+  "description": "",
+  "main": "revealAsqForkAdapter.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bows": "^1.1.2",
+    "cheerio": "^0.17.0"
+  }
+}
