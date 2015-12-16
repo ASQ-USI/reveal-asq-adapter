@@ -1,6 +1,7 @@
 module.exports.getSlideFromGotoData = function(data){
-  if("undefined" !== typeof data && "undefined" !== typeof data.step){
-    return data.step
+  console.log('getSlideFromGotoData', data);
+  if("undefined" !== typeof data && "undefined" !== typeof data.id && 'undefined' !== data.indices){
+    return data.id
   }
   return null;
 }
