@@ -1,3 +1,3 @@
 module.exports = {
-    adapter: require('./revealAsqForkAdapter')
+    adapter: require('./revealAsqAdapter')
 }

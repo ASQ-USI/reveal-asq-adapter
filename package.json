@@ -1,8 +1,8 @@
 {
-  "name": "reveal-asq-fork-asq-adapter",
+  "name": "reveal-asq-adapter",
   "version": "0.0.1",
   "description": "",
-  "main": "revealAsqForkAsqAdapter.js",
+  "main": "revealAsqAdapter.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
