@@ -16,19 +16,17 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
     // patch reveal.js when it's ready
     patchReveal();
   } else {
-    // var firstStep = getStep(getElementFromHash()) || steps[0];
-    // goto(firstStep, null, 0);
-    // TOOD
+    // TODO  
   }
 
   var revealPatched = false;
-  var last_indices = undefined;
 
   asqSocket.onGoto(onAsqSocketGoto);
 
   return {
     goto: goto
   }
+
 
   // `patchReveal` patches the reveal.js api so that external scripts
   // that use goto to go through the adapter.
@@ -49,64 +47,33 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
     Reveal.indices2Id = indices2Id;
     Reveal.id2Indices = id2Indices;
 
-    // The reveal:slide event is fired whenver 
-    // the active slide has been changed.
-    Reveal.addEventListener('reveal:slide', function(evt) {
-      var indices = evt.detail;
-      if ( isDuplicated(indices) ) return;
-
-      // The code below is to filter some duplicated or 
-      // meaningless events triggered by Reveal.JS.
-      var fragments = getAvailableFragmentsByIndices(indices);
-      if ( !fragments.prev && !fragments.next  ) {
-        if ( typeof indices.f != 'undefined' ) return;
-      } else {
-        if ( typeof indices.f == 'undefined' ) return;
-      }
+    
+    var slideChangedHandler = function(evt) {
+      var state = Reveal.getState();
       
-      var id = Reveal.indices2Id(indices.h, indices.v, indices.f);
+      var id = Reveal.indices2Id(state.indexh, state.indexv, state.indexf);
 
-      console.log("goto #" + id + ' ( ' + evt.detail.h + ', ' + evt.detail.v + ', ' + evt.detail.f + ' )');
+      console.log("goto #" + id + ' ( ' + state.indexh + ', ' + state.indexv + ', ' + state.indexf + ' )');
       asqSocket.emitGoto({
         id: id,
-        indices: indices
+        state: state
       });
 
-      last_indices = indices;
-      return { id: id, indices: indices };
-    });
+      return { id: id, state: state };
+    }
+
+    Reveal.addEventListener('slidechanged', slideChangedHandler);
+    Reveal.addEventListener('fragmentshown', slideChangedHandler);
+    Reveal.addEventListener('fragmenthidden', slideChangedHandler);
+    Reveal.addEventListener('overviewhidden', slideChangedHandler);
+    Reveal.addEventListener('overviewshown', slideChangedHandler);
+    Reveal.addEventListener('paused', slideChangedHandler);
+    Reveal.addEventListener('resumed', slideChangedHandler);
+
 
     revealPatched = true;
 
     // goto(0, 0, 0)
-  }
-
-  function getAvailableFragmentsByIndices(indices) {
-    var slide = Reveal.getSlide(indices.h, indices.v, indices.f);
-    var fragments = slide.querySelectorAll( '.fragment' );
-    var hiddenFragments = slide.querySelectorAll( '.fragment:not(.visible)' );
-
-    return {
-      prev: fragments.length - hiddenFragments.length > 0,
-      next: !!hiddenFragments.length
-    }; 
-  }
-
-  // This function is used to check if the 
-  // given indices is equal with `last_indices` (defined in this package)
-  function isDuplicated(indices) {
-    var isEqual = function(a, b) {
-      return ( a == b || typeof(a) == typeof(b) == 'undefined' )
-    }
-
-    if ( typeof last_indices ==  'undefined' ) return false;
-
-    if ( isEqual(indices.h, last_indices.h) &&
-         isEqual(indices.v, last_indices.v) &&
-         isEqual(indices.f, last_indices.f) ) {
-      return true
-    }
-    return false
   }
 
   function onAsqSocketGoto(data){
@@ -115,7 +82,7 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
       debug("data is undefined or null");
       return;
     }
-    Reveal.goto(data.indices)
+    Reveal.goto(data.state)
   };
 
   function getSlidesTree() {
@@ -172,22 +139,23 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
    * The arguments can be either a ID of slide, indices 
    * or an indices object.
    */
-  function goto ( h, v, f ) {
-    if ( typeof h == 'string' ) {
+  function goto ( ) {
+    var args = toArray(arguments);
+    // use case 1: goto('an_id_of_a_slide_without_#')
+    if ( typeof args[0] === 'string' ) {
       var steps = getSlidesTree().steps;
-      if ( steps.indexOf(h) < 0 ) return;
-      var indices = window.Reveal.id2Indices(h);
+      if ( steps.indexOf(args[0]) < 0 ) return;
+      var indices = window.Reveal.id2Indices(args[0]);
       if ( indices == null ) return;
-      window.Reveal.slide(indices.h, indices.v, indices.f);
+      window.Reveal.slide(indices.indexh, indices.indexv, indices.indexf);
     } 
-    else if ( typeof h == 'number' ) {
-      window.Reveal.slide(h, v, f);
+    // use case 2: goto(h, v, f)
+    else if ( typeof args[0] === 'number' ) {
+      window.Reveal.slide(args[0], args[1], args[2]);
     } 
-    else if ( typeof h == 'object' && typeof h.h == 'number' ) {
-      f = h.f;
-      v = h.v;
-      h = h.h;
-      window.Reveal.slide(h, v, f);
+    // use case 3: goto( state_object )
+    else if ( typeof args[0] === 'object' && typeof args[0].indexh == 'number' ) {
+      window.Reveal.setState(args[0]);
     } 
   }
 
@@ -196,9 +164,9 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
   // into ID.
   function indices2Id(h, v, f) {
     if ( typeof h == 'object' ) {
-      f = h.f;
-      v = h.v;
-      h = h.h;
+      f = h.indexf;
+      v = h.inxexv;
+      h = h.indexh;
     }
 
     v = typeof v == 'undefined' ? 0 : v;
@@ -217,7 +185,6 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
       return undefined
     }
     return Reveal.getIndices(slide);
-
   }
 }
 
