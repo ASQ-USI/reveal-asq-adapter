@@ -3,6 +3,10 @@
 var debug = require('bows')("asqRevealAdapter");
 
 var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalone, offset) {
+  if ( insideRevealNote() ) {
+    return;
+  }
+    
   standalone = standalone || false;
   offset = offset || 0;
   slidesTree = slidesTree || getSlidesTree();
@@ -12,6 +16,8 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
   var steps = slidesTree.steps
   var allSubsteps = slidesTree.allSubsteps;
 
+  var revealPatched = false;
+
   if (! standalone) {
     // patch reveal.js when it's ready
     patchReveal();
@@ -19,14 +25,19 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
     // TODO  
   }
 
-  var revealPatched = false;
-
   asqSocket.onGoto(onAsqSocketGoto);
 
   return {
     goto: goto
   }
 
+  function getFlag() {
+    return document.cookie + window.location.pathname + window.location.search;
+  }
+
+  function insideRevealNote() {
+    return window.parent !== window.self;
+  }
 
   // `patchReveal` patches the reveal.js api so that external scripts
   // that use goto to go through the adapter.
@@ -55,6 +66,7 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
 
       console.log("goto #" + id + ' ( ' + state.indexh + ', ' + state.indexv + ', ' + state.indexf + ' )');
       asqSocket.emitGoto({
+        _flag: getFlag(),
         id: id,
         state: state
       });
@@ -62,18 +74,17 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
       return { id: id, state: state };
     }
 
-    Reveal.addEventListener('slidechanged', slideChangedHandler);
-    Reveal.addEventListener('fragmentshown', slideChangedHandler);
-    Reveal.addEventListener('fragmenthidden', slideChangedHandler);
-    Reveal.addEventListener('overviewhidden', slideChangedHandler);
-    Reveal.addEventListener('overviewshown', slideChangedHandler);
-    Reveal.addEventListener('paused', slideChangedHandler);
-    Reveal.addEventListener('resumed', slideChangedHandler);
-
+    if (window.location.search.indexOf('role=presenter') >= 0) {
+      Reveal.addEventListener('slidechanged', slideChangedHandler);
+      Reveal.addEventListener('fragmentshown', slideChangedHandler);
+      Reveal.addEventListener('fragmenthidden', slideChangedHandler);
+      Reveal.addEventListener('overviewhidden', slideChangedHandler);
+      Reveal.addEventListener('overviewshown', slideChangedHandler);
+      Reveal.addEventListener('paused', slideChangedHandler);
+      Reveal.addEventListener('resumed', slideChangedHandler);
+    }
 
     revealPatched = true;
-
-    // goto(0, 0, 0)
   }
 
   function onAsqSocketGoto(data){
@@ -81,6 +92,9 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
     if("undefined" === typeof data || data === null){
       debug("data is undefined or null");
       return;
+    }
+    if ( data._flag === getFlag() ) {
+      return
     }
     Reveal.goto(data.state)
   };
@@ -134,6 +148,7 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
     return Array.prototype.slice.call( o );
   }
 
+
   /**
    * A wrapper function used to navigate the slde.
    * The arguments can be either a ID of slide, indices 
@@ -141,6 +156,7 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
    */
   function goto ( ) {
     var args = toArray(arguments);
+    if ( _.isEqual(Reveal.getState(), args[0]) ) return;
     // use case 1: goto('an_id_of_a_slide_without_#')
     if ( typeof args[0] === 'string' ) {
       var steps = getSlidesTree().steps;
