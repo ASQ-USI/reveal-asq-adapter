@@ -2,7 +2,9 @@
 
 var debug = require('bows')("asqRevealAdapter");
 
-var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalone, offset) {
+var initiator = require('./asq-reveal-initiator');
+
+var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalone, offset, role) {
   if ( insideRevealNote() ) {
     return;
   }
@@ -11,7 +13,7 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
   offset = offset || 0;
   slidesTree = slidesTree || getSlidesTree();
 
-  console.log('asqRevealAdapter', slidesTree);
+  debug('asqRevealAdapter', slidesTree);
 
   var steps = slidesTree.steps
   var allSubsteps = slidesTree.allSubsteps;
@@ -26,6 +28,8 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
   }
 
   asqSocket.onGoto(onAsqSocketGoto);
+
+  initiator(role, null);
 
   return {
     goto: goto
@@ -57,14 +61,13 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
     Reveal.goto = goto;
     Reveal.indices2Id = indices2Id;
     Reveal.id2Indices = id2Indices;
-
     
     var slideChangedHandler = function(evt) {
       var state = Reveal.getState();
       
       var id = Reveal.indices2Id(state.indexh, state.indexv, state.indexf);
 
-      console.log("goto #" + id + ' ( ' + state.indexh + ', ' + state.indexv + ', ' + state.indexf + ' )');
+      debug("goto #" + id + ' ( ' + state.indexh + ', ' + state.indexv + ', ' + state.indexf + ' )');
       asqSocket.emitGoto({
         _flag: getFlag(),
         id: id,
@@ -88,7 +91,7 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
   }
 
   function onAsqSocketGoto(data){
-    console.log('@@ onAsqSocketGoto @@', data);
+    debug('@@ onAsqSocketGoto @@', data);
     if("undefined" === typeof data || data === null){
       debug("data is undefined or null");
       return;
@@ -96,7 +99,9 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
     if ( data._flag === getFlag() ) {
       return
     }
-    Reveal.goto(data.state)
+    if (typeof Reveal.goto === 'function') {
+      Reveal.goto(data.state);
+    }
   };
 
   function getSlidesTree() {
@@ -202,5 +207,12 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
     }
     return Reveal.getIndices(slide);
   }
+
+  function getParameterByName(name) {
+  name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
+  var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
+    results = regex.exec(location.search);
+  return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
+}
 }
 
