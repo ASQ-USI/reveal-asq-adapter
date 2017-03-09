@@ -20,6 +20,8 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
 
   var revealPatched = false;
 
+  var fingerprint = getFingerprint(role);
+
   if (! standalone) {
     // patch reveal.js when it's ready
     patchReveal();
@@ -35,8 +37,12 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
     goto: goto
   }
 
-  function getFlag() {
-    return document.cookie + window.location.pathname + window.location.search;
+  function getRandomString() {
+    return Math.floor((1 + Math.random()) * 0x100000000).toString(16);
+  }
+
+  function getFingerprint(role) {
+    return role + getRandomString() + window.location.pathname + window.location.search;
   }
 
   function insideRevealNote() {
@@ -69,7 +75,7 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
 
       debug("goto #" + id + ' ( ' + state.indexh + ', ' + state.indexv + ', ' + state.indexf + ' )');
       asqSocket.emitGoto({
-        _flag: getFlag(),
+        _flag: fingerprint,
         id: id,
         state: state
       });
@@ -96,7 +102,7 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
       debug("data is undefined or null");
       return;
     }
-    if ( data._flag === getFlag() ) {
+    if ( data._flag === fingerprint ) {
       return
     }
     if (typeof Reveal.goto === 'function') {
@@ -215,4 +221,3 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
   return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
 }
 }
-
