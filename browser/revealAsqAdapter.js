@@ -107,6 +107,11 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
     }
     if (typeof Reveal.goto === 'function') {
       Reveal.goto(data.state);
+
+      var times = offset;
+      while (times-- >0 ){
+        Reveal.next();
+      }
     }
   };
 
