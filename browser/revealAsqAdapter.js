@@ -77,7 +77,8 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
       asqSocket.emitGoto({
         _flag: fingerprint,
         id: id,
-        state: state
+        state: state,
+        isAutoSliding: Reveal.isAutoSliding()
       });
 
       return { id: id, state: state };
@@ -105,6 +106,13 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
     if ( data._flag === fingerprint ) {
       return
     }
+
+    if (data.hasOwnProperty('isAutoSliding')) {
+      if (data.isAutoSliding !== Reveal.isAutoSliding()) {
+        Reveal.toggleAutoSlide()
+      }
+    }
+
     if (typeof Reveal.goto === 'function') {
       Reveal.goto(data.state);
 
