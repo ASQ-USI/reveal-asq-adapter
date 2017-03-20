@@ -600,7 +600,8 @@ var asqRevealAdapter = module.exports = function (asqSocket, slidesTree, standal
       asqSocket.emitGoto({
         _flag: fingerprint,
         id: id,
-        state: state
+        state: state,
+        isAutoSliding: Reveal.isAutoSliding()
       });
       return {
         id: id,
@@ -627,8 +628,17 @@ var asqRevealAdapter = module.exports = function (asqSocket, slidesTree, standal
     if (data._flag === fingerprint) {
       return;
     }
+    if (data.hasOwnProperty("isAutoSliding")) {
+      if (data.isAutoSliding !== Reveal.isAutoSliding()) {
+        Reveal.toggleAutoSlide();
+      }
+    }
     if (typeof Reveal.goto === "function") {
-      Reveal.goto(data.state);
+      if (data.hasOwnProperty("state")) {
+        Reveal.goto(data.state);
+      } else if (data.hasOwnProperty("step")) {
+        Reveal.goto(data.step);
+      }
       var times = offset;
       while (times-- > 0) {
         Reveal.next();
@@ -721,12 +731,18 @@ return module.exports;
 
 });
 define('index',['require', 'exports', 'module', './revealAsqAdapter'], function (require, exports, module) {
+  var __umodule__ = (function (require, exports, module) {
   
 
+({ urequire: { rootExports: "RevealAsqAdapter" } });
 module.exports = { adapter: require("./revealAsqAdapter") };
 
 return module.exports;
 
+}).call(this, require, exports, module);
+if (!__isAMD && !__isNode) {window['RevealAsqAdapter'] = __umodule__;
+
+}return __umodule__;
 });
     return require('index');
 
