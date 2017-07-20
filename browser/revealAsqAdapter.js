@@ -1,240 +1,281 @@
 'use strict';
 
-var debug = require('bows')("asqRevealAdapter");
+	var debug = __webpack_require__(/*! bows */ 2)("asqRevealAdapter");
 
-var initiator = require('./asq-reveal-initiator');
+	var initiator = __webpack_require__(/*! ./asq-reveal-initiator */ 75);
 
-var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalone, offset, role) {
-  if ( insideRevealNote() ) {
-    return;
-  }
-    
-  standalone = standalone || false;
-  offset = offset || 0;
-  slidesTree = slidesTree || getSlidesTree();
+	var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalone, offset, role) {
+	  if ( insideRevealNote() ) {
+	    return;
+	  }
 
-  debug('asqRevealAdapter', slidesTree);
+	  standalone = standalone || false;
+	  offset = offset || 0;
+	  slidesTree = slidesTree || getSlidesTree();
 
-  var steps = slidesTree.steps
-  var allSubsteps = slidesTree.allSubsteps;
+	  debug('asqRevealAdapter', slidesTree);
 
-  var revealPatched = false;
+	  var steps = slidesTree.steps
+	  var allSubsteps = slidesTree.allSubsteps;
 
-  var fingerprint = getFingerprint(role);
+	  var revealPatched = false;
 
-  if (! standalone) {
-    // patch reveal.js when it's ready
-    patchReveal();
-  } else {
-    // TODO  
-  }
+	  var fingerprint = getFingerprint(role);
 
-  asqSocket.onGoto(onAsqSocketGoto);
+	  if (! standalone) {
+	    // patch reveal.js when it's ready
+	    patchReveal();
+	  } else {
+	    // TODO
+	  }
 
-  initiator(role, null);
+	  asqSocket.onGoto(onAsqSocketGoto);
+		asqSocket.onAddSlide(onAsqSocketAddSlide);
 
-  return {
-    goto: goto
-  }
+	  initiator(role, null);
 
-  function getRandomString() {
-    return Math.floor((1 + Math.random()) * 0x100000000).toString(16);
-  }
+	  return {
+	    goto: goto
+	  }
 
-  function getFingerprint(role) {
-    return role + getRandomString() + window.location.pathname + window.location.search;
-  }
 
-  function insideRevealNote() {
-    return window.parent !== window.self;
-  }
+	  function getRandomString() {
+	    return Math.floor((1 + Math.random()) * 0x100000000).toString(16);
+	  }
 
-  // `patchReveal` patches the reveal.js api so that external scripts
-  // that use goto to go through the adapter.
-  function patchReveal(){
-    if ( revealPatched ) return;
-    
-    // TODO reveal:ready
-    if (typeof window.Reveal === 'undefined' || window.Reveal == null 
-        || typeof window.Reveal.isReady != 'function' || !window.Reveal.isReady() ) {
-      document.addEventListener("ready", patchReveal);
-      return;
-    }
-    var Reveal = window.Reveal;
+	  function getFingerprint(role) {
+	    return role + getRandomString() + window.location.pathname + window.location.search;
+	  }
 
-    document.removeEventListener("ready", patchReveal);
+	  function insideRevealNote() {
+	    return window.parent !== window.self;
+	  }
 
-    Reveal.goto = goto;
-    Reveal.indices2Id = indices2Id;
-    Reveal.id2Indices = id2Indices;
-    
-    var slideChangedHandler = function(evt) {
-      var state = Reveal.getState();
-      
-      var id = Reveal.indices2Id(state.indexh, state.indexv, state.indexf);
+	  // `patchReveal` patches the reveal.js api so that external scripts
+	  // that use goto to go through the adapter.
+	  function patchReveal(){
+	    if ( revealPatched ) return;
 
-      debug("goto #" + id + ' ( ' + state.indexh + ', ' + state.indexv + ', ' + state.indexf + ' )');
-      asqSocket.emitGoto({
-        _flag: fingerprint,
-        id: id,
-        state: state,
-        isAutoSliding: Reveal.isAutoSliding()
-      });
+	    // TODO reveal:ready
+	    if (typeof window.Reveal === 'undefined' || window.Reveal == null
+	        || typeof window.Reveal.isReady != 'function' || !window.Reveal.isReady() ) {
+	      document.addEventListener("ready", patchReveal);
+	      return;
+	    }
+	    var Reveal = window.Reveal;
 
-      return { id: id, state: state };
-    }
+	    document.removeEventListener("ready", patchReveal);
 
-    if (window.location.search.indexOf('role=presenter') >= 0) {
-      Reveal.addEventListener('slidechanged', slideChangedHandler);
-      Reveal.addEventListener('fragmentshown', slideChangedHandler);
-      Reveal.addEventListener('fragmenthidden', slideChangedHandler);
-      Reveal.addEventListener('overviewhidden', slideChangedHandler);
-      Reveal.addEventListener('overviewshown', slideChangedHandler);
-      Reveal.addEventListener('paused', slideChangedHandler);
-      Reveal.addEventListener('resumed', slideChangedHandler);
-    }
+	    Reveal.goto = goto;
+	    Reveal.indices2Id = indices2Id;
+	    Reveal.id2Indices = id2Indices;
 
-    revealPatched = true;
-  }
+	    var slideChangedHandler = function(evt) {
+	      var state = Reveal.getState();
 
-  function onAsqSocketGoto(data){
-    debug('@@ onAsqSocketGoto @@', data);
-    if("undefined" === typeof data || data === null){
-      debug("data is undefined or null");
-      return;
-    }
-    if ( data._flag === fingerprint ) {
-      return
-    }
+	      var id = Reveal.indices2Id(state.indexh, state.indexv, state.indexf);
 
-    if (data.hasOwnProperty('isAutoSliding')) {
-      if (data.isAutoSliding !== Reveal.isAutoSliding()) {
-        Reveal.toggleAutoSlide()
+	      debug("goto #" + id + ' ( ' + state.indexh + ', ' + state.indexv + ', ' + state.indexf + ' )');
+	      asqSocket.emitGoto({
+	        _flag: fingerprint,
+	        id: id,
+	        state: state,
+	        isAutoSliding: Reveal.isAutoSliding()
+	      });
+
+	      return { id: id, state: state };
+	    }
+
+	    if (window.location.search.indexOf('role=presenter') >= 0) {
+	      Reveal.addEventListener('slidechanged', slideChangedHandler);
+	      Reveal.addEventListener('fragmentshown', slideChangedHandler);
+	      Reveal.addEventListener('fragmenthidden', slideChangedHandler);
+	      Reveal.addEventListener('overviewhidden', slideChangedHandler);
+	      Reveal.addEventListener('overviewshown', slideChangedHandler);
+	      Reveal.addEventListener('paused', slideChangedHandler);
+	      Reveal.addEventListener('resumed', slideChangedHandler);
+	    }
+
+	    revealPatched = true;
+	  }
+
+	  function onAsqSocketGoto(data){
+	    debug('@@ onAsqSocketGoto @@', data);
+	    if("undefined" === typeof data || data === null){
+	      debug("data is undefined or null");
+	      return;
+	    }
+	    if ( data._flag === fingerprint ) {
+	      return
+	    }
+
+	    if (data.hasOwnProperty('isAutoSliding')) {
+	      if (data.isAutoSliding !== Reveal.isAutoSliding()) {
+	        Reveal.toggleAutoSlide()
+	      }
+	    }
+
+	    if (typeof Reveal.goto === 'function') {
+	      if (data.hasOwnProperty('state')) {
+	        Reveal.goto(data.state);
+	      } else if (data.hasOwnProperty('step')) {
+	        Reveal.goto(data.step);
+	      }
+
+	      var times = offset;
+	      while (times-- >0 ){
+	        Reveal.next();
+	      }
+	    }
+	  };
+
+		function onAsqSocketAddSlide(data) {
+			console.log("add the slide here in the adapter");
+			var content = 'blabla';
+			var slideIndex = -1;
+			var atEnd = false;
+			var dom = {};
+
+			dom.slides = document.querySelector('.reveal .slides');
+			var newSlide = document.createElement('section');
+
+			if(atEnd || data.index == Reveal.getTotalSlides()) {
+				// add slide at the end of the presentation
+        newSlide.classList.add('future');
+        dom.slides.appendChild(newSlide);
+      	document.querySelector( '.navigate-right' ).classList.add( 'enabled' );
       }
-    }
-
-    if (typeof Reveal.goto === 'function') {
-      if (data.hasOwnProperty('state')) {
-        Reveal.goto(data.state);
-      } else if (data.hasOwnProperty('step')) {
-        Reveal.goto(data.step);
+			else if(data.index) {
+				// add slide at a given index (used for setting up the presentation)
+				newSlide.classList.add('future');
+				dom.slides.insertBefore(newSlide,dom.slides.querySelectorAll('section:nth-child('+(index+1)+')')[0]);
+			}
+			else {
+				// add slide after the current slide
+        newSlide.classList.add('future');
+        dom.slides.insertBefore(newSlide, Reveal.getCurrentSlide().nextSibling);
       }
+      newSlide.innerHTML = content;
+		}
 
-      var times = offset;
-      while (times-- >0 ){
-        Reveal.next();
-      }
-    }
-  };
+		function indexOfSlide(slide) {
+	    var children = node.parentNode.children;
+	    var num = 0;
+	    for (var i = 0; i < children.length; i++) {
+	         if (children[i] == node) return num;
+	         if (children[i].nodeType == 1) num++;
+	    }
+	    return -1;
+		}
 
-  function getSlidesTree() {
-    var slidesTree = {};
-    slidesTree.allSubsteps={};
+	  function getSlidesTree() {
+	    var slidesTree = {};
+	    slidesTree.allSubsteps={};
 
-    var sections = toArray(document.querySelectorAll('.reveal .slides > section'));
-    var steps = [];
+	    var sections = toArray(document.querySelectorAll('.reveal .slides > section'));
+	    var steps = [];
 
-    // original steps array
-    sections.forEach(function(section, index){
-        if ( section.querySelector('section') ) {
-            toArray(section.querySelectorAll('section')).forEach(function(slide){
-                steps.push(slide)
-            });
-        } else {
-            steps.push(section)
-        }
-    });
-
-    
-    steps.forEach(function(slide, index){
-        if ( typeof slide.id == 'undefined' || slide.id.trim() == '') {
-            slide.id = 'step-' + (index + 1)
-        }
-
-        // generate substeps Object
-        var elSubs = slidesTree.allSubsteps[slide.id] = Object.create(null);
-        elSubs.substeps = getSubSteps(slide);
-        elSubs.active = -1;
-    });
+	    // original steps array
+	    sections.forEach(function(section, index){
+	        if ( section.querySelector('section') ) {
+	            toArray(section.querySelectorAll('section')).forEach(function(slide){
+	                steps.push(slide)
+	            });
+	        } else {
+	            steps.push(section)
+	        }
+	    });
 
 
-    slidesTree.steps = steps.map(function(slide) {
-        return slide.id
-    });
+	    steps.forEach(function(slide, index){
+	        if ( typeof slide.id == 'undefined' || slide.id.trim() == '') {
+	            slide.id = 'step-' + (index + 1)
+	        }
 
-    return slidesTree;
-  }
-
-  function getSubSteps(el) {
-    var substeps = toArray(el.querySelectorAll('.fragment'));
-    return substeps.map(function() {
-        return ''
-    });
-  }
-
-  function toArray( o ) {
-    return Array.prototype.slice.call( o );
-  }
+	        // generate substeps Object
+	        var elSubs = slidesTree.allSubsteps[slide.id] = Object.create(null);
+	        elSubs.substeps = getSubSteps(slide);
+	        elSubs.active = -1;
+	    });
 
 
-  /**
-   * A wrapper function used to navigate the slde.
-   * The arguments can be either a ID of slide, indices 
-   * or an indices object.
-   */
-  function goto ( ) {
-    var args = toArray(arguments);
-    if ( _.isEqual(Reveal.getState(), args[0]) ) return;
-    // use case 1: goto('an_id_of_a_slide_without_#')
-    if ( typeof args[0] === 'string' ) {
-      var steps = getSlidesTree().steps;
-      if ( steps.indexOf(args[0]) < 0 ) return;
-      var indices = window.Reveal.id2Indices(args[0]);
-      if ( indices == null ) return;
-      window.Reveal.slide(indices.indexh, indices.indexv, indices.indexf);
-    } 
-    // use case 2: goto(h, v, f)
-    else if ( typeof args[0] === 'number' ) {
-      window.Reveal.slide(args[0], args[1], args[2]);
-    } 
-    // use case 3: goto( state_object )
-    else if ( typeof args[0] === 'object' && typeof args[0].indexh == 'number' ) {
-      window.Reveal.setState(args[0]);
-    } 
-  }
+	    slidesTree.steps = steps.map(function(slide) {
+	        return slide.id
+	    });
+
+	    return slidesTree;
+	  }
+
+	  function getSubSteps(el) {
+	    var substeps = toArray(el.querySelectorAll('.fragment'));
+	    return substeps.map(function() {
+	        return ''
+	    });
+	  }
+
+	  function toArray( o ) {
+	    return Array.prototype.slice.call( o );
+	  }
 
 
-  // Helper function that translates slides indices 
-  // into ID.
-  function indices2Id(h, v, f) {
-    if ( typeof h == 'object' ) {
-      f = h.indexf;
-      v = h.inxexv;
-      h = h.indexh;
-    }
+	  /**
+	   * A wrapper function used to navigate the slde.
+	   * The arguments can be either a ID of slide, indices
+	   * or an indices object.
+	   */
+	  function goto ( ) {
+	    var args = toArray(arguments);
+	    if ( _.isEqual(Reveal.getState(), args[0]) ) return;
+	    // use case 1: goto('an_id_of_a_slide_without_#')
+	    if ( typeof args[0] === 'string' ) {
+	      var steps = getSlidesTree().steps;
+	      if ( steps.indexOf(args[0]) < 0 ) return;
+	      var indices = window.Reveal.id2Indices(args[0]);
+	      if ( indices == null ) return;
+	      window.Reveal.slide(indices.indexh, indices.indexv, indices.indexf);
+	    }
+	    // use case 2: goto(h, v, f)
+	    else if ( typeof args[0] === 'number' ) {
+	      window.Reveal.slide(args[0], args[1], args[2]);
+	    }
+	    // use case 3: goto( state_object )
+	    else if ( typeof args[0] === 'object' && typeof args[0].indexh == 'number' ) {
+	      window.Reveal.setState(args[0]);
+	    }
+	  }
 
-    v = typeof v == 'undefined' ? 0 : v;
 
-    var slide = Reveal.getSlide(h, v, f);
-    if ( typeof slide  == 'undefined' || slide == null ) {
-      return undefined
-    }
+	  // Helper function that translates slides indices
+	  // into ID.
+	  function indices2Id(h, v, f) {
+	    if ( typeof h == 'object' ) {
+	      f = h.indexf;
+	      v = h.inxexv;
+	      h = h.indexh;
+	    }
 
-    return slide.id
-  }
+	    v = typeof v == 'undefined' ? 0 : v;
 
-  function id2Indices(id) {
-    var slide = document.querySelector('#'+id);
-    if ( typeof slide  == 'undefined' || slide == null ) {
-      return undefined
-    }
-    return Reveal.getIndices(slide);
-  }
+	    var slide = Reveal.getSlide(h, v, f);
+	    if ( typeof slide  == 'undefined' || slide == null ) {
+	      return undefined
+	    }
 
-  function getParameterByName(name) {
-  name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
-  var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
-    results = regex.exec(location.search);
-  return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
-}
-}
+	    return slide.id
+	  }
+
+	  function id2Indices(id) {
+	    var slide = document.querySelector('#'+id);
+	    if ( typeof slide  == 'undefined' || slide == null ) {
+	      return undefined
+	    }
+	    return Reveal.getIndices(slide);
+	  }
+
+	  function getParameterByName(name) {
+	  name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
+	  var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
+	    results = regex.exec(location.search);
+	  return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
+	 }
+	}
