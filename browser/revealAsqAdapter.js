@@ -69,7 +69,6 @@
 	    Reveal.goto = goto;
 	    Reveal.indices2Id = indices2Id;
 	    Reveal.id2Indices = id2Indices;
-			Reveal.socket = asqSocket;
 
 	    var slideChangedHandler = function(evt) {
 	      var state = Reveal.getState();
@@ -132,53 +131,26 @@
 
 		function onAsqSocketAddSlide(data) {
 			addSlide(data);
-			if (!data.noStore) {
-				console.log("store pluginInfo");
-			}
-		}
-
-
-		function indexOfSlide(slide) {
-	    var children = node.parentNode.children;
-	    var num = 0;
-	    for (var i = 0; i < children.length; i++) {
-	         if (children[i] == node) return num;
-	         if (children[i].nodeType == 1) num++;
-	    }
-	    return -1;
-		}
-
-		function idGenerator() {
-    var S4 = function() {
-       return (((1+Math.random())*0x10000)|0).toString(16).substring(1);
-    };
-    	return (S4()+S4()+"-"+S4()+"-"+S4()+"-"+S4()+"-"+S4()+S4()+S4());
 		}
 
 		function addSlide(data) {
-			var dom = {};
-			dom.slides = document.querySelector('.reveal .slides');
-			var newSlide = document.createElement('section');
+      var dom = {};
+      dom.slides = document.querySelector('.reveal .slides');
+      var newSlide = document.createElement('section');
 
-			if(data.atEnd || data.index == Reveal.getTotalSlides()) {
-				// add slide at the end of the presentation
+      if(data.index == Reveal.getTotalSlides()) {
+        // add slide at the end of the presentation
         newSlide.classList.add('future');
         dom.slides.appendChild(newSlide);
-      	document.querySelector( '.navigate-right' ).classList.add( 'enabled' );
+        document.querySelector( '.navigate-right' ).classList.add( 'enabled' );
       }
-			else if(data.index) {
-				// add slide at a given index (used for setting up the presentation)
-				newSlide.classList.add('future');
-				dom.slides.insertBefore(newSlide,dom.slides.querySelectorAll('section:nth-child('+(index+1)+')')[0]);
-			}
-			else {
-				// add slide after the current slide
+      else {
+        // add slide at a given index
         newSlide.classList.add('future');
-        dom.slides.insertBefore(newSlide, Reveal.getCurrentSlide().nextSibling);
+        dom.slides.insertBefore(newSlide,dom.slides.querySelector('section:nth-child('+(data.index+1)+')'));
       }
       newSlide.innerHTML = data.content;
-			newSlide.id = "s" + idGenerator();
-			return newSlide;
+      newSlide.id = data.id;
 		}
 
 	  function getSlidesTree() {
