@@ -133,7 +133,8 @@
 			addSlide(data);
 		}
 
-		function addSlide(data) {
+    function addSlide(data) {
+    if (!document.getElementById(data.id)) {
       var dom = {};
       dom.slides = document.querySelector('.reveal .slides');
       var newSlide = document.createElement('section');
@@ -151,7 +152,8 @@
       }
       newSlide.innerHTML = data.content;
       newSlide.id = data.id;
-		}
+    }
+  }
 
 	  function getSlidesTree() {
 	    var slidesTree = {};
