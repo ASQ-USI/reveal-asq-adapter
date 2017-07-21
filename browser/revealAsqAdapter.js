@@ -69,6 +69,7 @@
 	    Reveal.goto = goto;
 	    Reveal.indices2Id = indices2Id;
 	    Reveal.id2Indices = id2Indices;
+			Reveal.socket = asqSocket;
 
 	    var slideChangedHandler = function(evt) {
 	      var state = Reveal.getState();
@@ -130,16 +131,36 @@
 	  };
 
 		function onAsqSocketAddSlide(data) {
-			console.log("add the slide here in the adapter");
-			var content = 'blabla';
-			var slideIndex = -1;
-			var atEnd = false;
-			var dom = {};
+			addSlide(data);
+			if (!data.noStore) {
+				console.log("store pluginInfo");
+			}
+		}
 
+
+		function indexOfSlide(slide) {
+	    var children = node.parentNode.children;
+	    var num = 0;
+	    for (var i = 0; i < children.length; i++) {
+	         if (children[i] == node) return num;
+	         if (children[i].nodeType == 1) num++;
+	    }
+	    return -1;
+		}
+
+		function idGenerator() {
+    var S4 = function() {
+       return (((1+Math.random())*0x10000)|0).toString(16).substring(1);
+    };
+    	return (S4()+S4()+"-"+S4()+"-"+S4()+"-"+S4()+"-"+S4()+S4()+S4());
+		}
+
+		function addSlide(data) {
+			var dom = {};
 			dom.slides = document.querySelector('.reveal .slides');
 			var newSlide = document.createElement('section');
 
-			if(atEnd || data.index == Reveal.getTotalSlides()) {
+			if(data.atEnd || data.index == Reveal.getTotalSlides()) {
 				// add slide at the end of the presentation
         newSlide.classList.add('future');
         dom.slides.appendChild(newSlide);
@@ -155,17 +176,9 @@
         newSlide.classList.add('future');
         dom.slides.insertBefore(newSlide, Reveal.getCurrentSlide().nextSibling);
       }
-      newSlide.innerHTML = content;
-		}
-
-		function indexOfSlide(slide) {
-	    var children = node.parentNode.children;
-	    var num = 0;
-	    for (var i = 0; i < children.length; i++) {
-	         if (children[i] == node) return num;
-	         if (children[i].nodeType == 1) num++;
-	    }
-	    return -1;
+      newSlide.innerHTML = data.content;
+			newSlide.id = "s" + idGenerator();
+			return newSlide;
 		}
 
 	  function getSlidesTree() {
