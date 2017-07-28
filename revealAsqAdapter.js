@@ -1,5 +1,4 @@
 module.exports.getSlideFromGotoData = function(data){
-  console.log('getSlideFromGotoData', data);
   if("undefined" !== typeof data && "undefined" !== typeof data.id && 'undefined' !== data.state){
     return data.id
   }
@@ -40,7 +39,7 @@ module.exports.getSlidesTree = function(html) {
     }
   });
 
-  
+
   steps.forEach(function(slide, idx){
     var $slide = $(slide);
     if ( typeof $slide.attr('id') == 'undefined' || $slide.attr('id').trim() == '') {
@@ -68,7 +67,3 @@ module.exports.getSlidesTree = function(html) {
   }
 
 }
-
-
-
-
