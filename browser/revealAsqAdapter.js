@@ -143,7 +143,7 @@
         // add slide at the end of the presentation
         newSlide.classList.add('future');
         dom.slides.appendChild(newSlide);
-        document.querySelector('.navigate-right').classList.add( 'enabled' );
+        document.querySelector('.navigate-right').classList.add('enabled');
       }
       else {
         // add slide at a given index
