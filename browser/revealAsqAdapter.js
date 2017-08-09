@@ -1,8 +1,8 @@
 'use strict';
 
-	var debug = __webpack_require__(/*! bows */ 2)("asqRevealAdapter");
+	var debug = require('bows')('asqRevealAdapter');
 
-	var initiator = __webpack_require__(/*! ./asq-reveal-initiator */ 75);
+	var initiator = require('./asq-reveal-initiator');
 
 	var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalone, offset, role) {
 	  if ( insideRevealNote() ) {
@@ -31,6 +31,7 @@
 
 	  asqSocket.onGoto(onAsqSocketGoto);
 		asqSocket.onAddSlide(onAsqSocketAddSlide);
+    asqSocket.onRemoveSlide(onAsqSocketRemoveSlide);
 
 	  initiator(role, null);
 
@@ -134,26 +135,32 @@
 		}
 
     function addSlide(data) {
-    if (!document.getElementById(data.id)) {
-      var dom = {};
-      dom.slides = document.querySelector('.reveal .slides');
-      var newSlide = document.createElement('section');
+      if (!document.getElementById(data.id)) {
+        var dom = {};
+        dom.slides = document.querySelector('.reveal .slides');
+        var newSlide = document.createElement('section');
 
-      if(data.index == Reveal.getTotalSlides()) {
-        // add slide at the end of the presentation
-        newSlide.classList.add('future');
-        dom.slides.appendChild(newSlide);
-        document.querySelector('.navigate-right').classList.add('enabled');
+        if(data.index == Reveal.getTotalSlides()) {
+          // add slide at the end of the presentation
+          newSlide.classList.add('future');
+          dom.slides.appendChild(newSlide);
+          document.querySelector('.navigate-right').classList.add('enabled');
+        }
+        else {
+          // add slide at a given index
+          newSlide.classList.add('future');
+          dom.slides.insertBefore(newSlide,dom.slides.querySelector('section:nth-child('+(data.index+1)+')'));
+        }
+        newSlide.innerHTML = data.content;
+        newSlide.id = data.id;
       }
-      else {
-        // add slide at a given index
-        newSlide.classList.add('future');
-        dom.slides.insertBefore(newSlide,dom.slides.querySelector('section:nth-child('+(data.index+1)+')'));
-      }
-      newSlide.innerHTML = data.content;
-      newSlide.id = data.id;
     }
-  }
+
+    function onAsqSocketRemoveSlide(data) {
+      var toRemove = document.getElementById(data.id);
+      toRemove.parentNode.removeChild(toRemove);
+      Reveal.prev();
+    }
 
 	  function getSlidesTree() {
 	    var slidesTree = {};
