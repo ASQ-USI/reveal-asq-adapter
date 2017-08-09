@@ -157,9 +157,11 @@
     }
 
     function onAsqSocketRemoveSlide(data) {
-      var toRemove = document.getElementById(data.id);
-      toRemove.parentNode.removeChild(toRemove);
-      Reveal.prev();
+			if (document.getElementById(data.id)) {
+				var toRemove = document.getElementById(data.id);
+				toRemove.parentNode.removeChild(toRemove);
+				Reveal.prev();
+			}
     }
 
 	  function getSlidesTree() {
