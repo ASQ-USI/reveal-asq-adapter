@@ -139,6 +139,8 @@
         var dom = {};
         dom.slides = document.querySelector('.reveal .slides');
         var newSlide = document.createElement('section');
+				newSlide.style.width = '960px';
+				newSlide.style.height = '700px';
 
         if(data.index == Reveal.getTotalSlides()) {
           // add slide at the end of the presentation
@@ -157,11 +159,9 @@
     }
 
     function onAsqSocketRemoveSlide(data) {
-			if (document.getElementById(data.id)) {
-				var toRemove = document.getElementById(data.id);
-				toRemove.parentNode.removeChild(toRemove);
-				Reveal.prev();
-			}
+      var toRemove = document.getElementById(data.id);
+      toRemove.parentNode.removeChild(toRemove);
+      Reveal.prev();
     }
 
 	  function getSlidesTree() {
