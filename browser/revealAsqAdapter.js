@@ -134,7 +134,7 @@
 			addSlide(data);
 		}
 
-    function addSlide(data) {
+		function addSlide(data) {
       if (!document.getElementById(data.id)) {
         var dom = {};
         dom.slides = document.querySelector('.reveal .slides');
@@ -142,7 +142,7 @@
 				newSlide.style.width = '960px';
 				newSlide.style.height = '700px';
 
-        if(data.index == Reveal.getTotalSlides()) {
+        if(data.index == document.querySelector('.reveal .slides').children.length) {
           // add slide at the end of the presentation
           newSlide.classList.add('future');
           dom.slides.appendChild(newSlide);
@@ -155,6 +155,14 @@
         }
         newSlide.innerHTML = data.content;
         newSlide.id = data.id;
+        if (!data.getSlides && !data.printing) {
+          if (data.index == document.querySelector('.reveal .slides').children.length - 1) {
+            while (!Reveal.isLastSlide()) Reveal.next();
+          }
+          else {
+            Reveal.next();
+          }
+        }
       }
     }
 
