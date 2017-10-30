@@ -5,6 +5,12 @@ module.exports.getSlideFromGotoData = function(data){
   return null;
 }
 
+module.exports.getFragmentFromGotoData = function(data){
+  if("undefined" !== typeof data && "undefined" !== typeof data.state && 'undefined' !== data.state.indexf){
+    return data.state.indexf
+  }
+  return null;
+}
 
 
 module.exports.getSlidesTree = function(html) {
