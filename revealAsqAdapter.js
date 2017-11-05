@@ -1,12 +1,9 @@
 module.exports.getSlideFromGotoData = function(data){
-  console.log('getSlideFromGotoData', data);
-  if("undefined" !== typeof data && "undefined" !== typeof data.id && 'undefined' !== data.state){
-    return data.id
+  if("undefined" !== typeof data && "undefined" !== typeof data.step){
+    return data.step;
   }
   return null;
 }
-
-
 
 module.exports.getSlidesTree = function(html) {
   if("undefined" == typeof html){
@@ -22,7 +19,7 @@ module.exports.getSlidesTree = function(html) {
     lowerCaseTags:false,
     recognizeSelfClosing: true
   });
-
+  
   var sections = $('.reveal .slides > section');
   var steps = [];
 
@@ -62,13 +59,9 @@ module.exports.getSlidesTree = function(html) {
 
   function getSubSteps($, $el) {
     var substeps = $el.find('> .fragment').toArray();
-    return substeps.map(function() {
-      return ''
+    return substeps.map(function(sub) {
+      return $(sub).attr('id');
     });
   }
 
 }
-
-
-
-

@@ -554,32 +554,134 @@ define('revealAsqAdapter',['require', 'exports', 'module', './asq-reveal-initiat
 var debug = require("bows")("asqRevealAdapter");
 var initiator = require("./asq-reveal-initiator");
 var asqRevealAdapter = module.exports = function (asqSocket, slidesTree, standalone, offset, role) {
-  if (insideRevealNote()) {
+  if (insideRevealSpeakerNote()) {
+    initiator(role, null);
     return;
   }
   standalone = standalone || false;
   offset = offset || 0;
   slidesTree = slidesTree || getSlidesTree();
-  debug("asqRevealAdapter", slidesTree);
-  var steps = slidesTree.steps;
-  var allSubsteps = slidesTree.allSubsteps;
+  var steps = null;
+  var allSubsteps = null;
+  var activeStep = null;
+  steps = slidesTree.steps;
+  allSubsteps = slidesTree.allSubsteps;
   var revealPatched = false;
-  var fingerprint = getFingerprint(role);
+  var fingerprint = getFingerprint(standalone ? "_standalone_" : role);
   if (!standalone) {
     patchReveal();
+    initiator(role, null);
   } else {
+    var initStep = role;
+    var firstStep = getElementFromHash() || initStep || steps[0];
+    broadcast(firstStep);
+    document.addEventListener("keyup", onKeyUp, false);
   }
   asqSocket.onGoto(onAsqSocketGoto);
-  initiator(role, null);
-  return { goto: goto };
+  return {
+    goto: goto,
+    destroy: destroy
+  };
+  function onKeyUp() {
+    if (event.target == document.body) {
+      if (event.keyCode === 9 || event.keyCode >= 32 && event.keyCode <= 34 || event.keyCode >= 37 && event.keyCode <= 40) {
+        event.preventDefault();
+        switch (event.keyCode) {
+        case 33:
+        case 37:
+        case 38:
+          prev();
+          break;
+        case 9:
+        case 32:
+        case 34:
+        case 39:
+        case 40:
+          next();
+          break;
+        }
+      }
+    }
+  }
+  function broadcast(step, subIdx) {
+    var id = null;
+    if (step === null || typeof step === "undefined" || "string" !== typeof (id = getStep(step))) {
+      if (subIdx === null || subIdx === undefined || isNaN(subIdx)) {
+        return null;
+      }
+    }
+    activeStep = id || activeStep;
+    allSubsteps[activeStep].active = !isNaN(subIdx) ? subIdx : -1;
+    asqSocket.emitGoto({
+      _flag: fingerprint,
+      step: activeStep,
+      substepIdx: allSubsteps[activeStep].active
+    });
+    return activeStep;
+  }
+  function getStep(step) {
+    if (typeof step === "number") {
+      step = step < 0 ? steps[steps.length + step] : steps[step];
+    } else if (typeof step === "string") {
+      step = steps.indexOf(step) > -1 ? step : null;
+    }
+    return step ? step : null;
+  }
+  function next() {
+    var subactive, substeps;
+    substeps = allSubsteps[activeStep].substeps || [];
+    if (substeps.length && (subactive = allSubsteps[activeStep].active) !== substeps.length - 1) {
+      if (isNaN(subactive) || subactive == null) {
+        subactive = -1;
+      }
+      return broadcast(null, ++subactive);
+    }
+    var next = steps.indexOf(activeStep) + 1;
+    next = next < steps.length ? steps[next] : steps[0];
+    return broadcast(next, -1);
+  }
+  ;
+  function prev() {
+    var subactive, substeps;
+    substeps = allSubsteps[activeStep].substeps || [];
+    if (substeps.length && ((subactive = allSubsteps[activeStep].active) || subactive === 0)) {
+      if (subactive >= 0) {
+        --subactive;
+        return broadcast(null, subactive);
+      }
+    }
+    var prev = steps.indexOf(activeStep) - 1;
+    prev = prev >= 0 ? steps[prev] : steps[steps.length - 1];
+    var prevSubsteps = allSubsteps[prev].substeps || [];
+    return broadcast(prev, prevSubsteps.length - 1);
+  }
+  ;
+  function destroy() {
+    if (standalone) {
+      document.removeEventListener("keyup", onKeyUp);
+    } else {
+      Reveal.removeEventListener("slidechanged", slideChangedHandler);
+      Reveal.removeEventListener("fragmentshown", slideChangedHandler);
+      Reveal.removeEventListener("fragmenthidden", slideChangedHandler);
+      Reveal.removeEventListener("overviewhidden", slideChangedHandler);
+      Reveal.removeEventListener("overviewshown", slideChangedHandler);
+      Reveal.removeEventListener("paused", slideChangedHandler);
+      Reveal.removeEventListener("resumed", slideChangedHandler);
+    }
+    asqSocket.offGoto(onAsqSocketGoto);
+  }
+  function getElementFromHash() {
+    return window.location.hash.replace(/^#\/?/, "");
+  }
+  ;
   function getRandomString() {
     return Math.floor((1 + Math.random()) * 4294967296).toString(16);
   }
   function getFingerprint(role) {
     return role + getRandomString() + window.location.pathname + window.location.search;
   }
-  function insideRevealNote() {
-    return window.parent !== window.self;
+  function insideRevealSpeakerNote() {
+    return window.location.search.indexOf("receiver") >= 0;
   }
   function patchReveal() {
     if (revealPatched)
@@ -596,17 +698,15 @@ var asqRevealAdapter = module.exports = function (asqSocket, slidesTree, standal
     var slideChangedHandler = function (evt) {
       var state = Reveal.getState();
       var id = Reveal.indices2Id(state.indexh, state.indexv, state.indexf);
-      debug("goto #" + id + " ( " + state.indexh + ", " + state.indexv + ", " + state.indexf + " )");
+      activeStep = id;
+      var substepIdx = Number.isInteger(state.indexf) ? state.indexf : -1;
       asqSocket.emitGoto({
         _flag: fingerprint,
-        id: id,
-        state: state,
+        step: activeStep,
+        substepIdx: substepIdx,
         isAutoSliding: Reveal.isAutoSliding()
       });
-      return {
-        id: id,
-        state: state
-      };
+      return activeStep;
     };
     if (window.location.search.indexOf("role=presenter") >= 0) {
       Reveal.addEventListener("slidechanged", slideChangedHandler);
@@ -620,29 +720,30 @@ var asqRevealAdapter = module.exports = function (asqSocket, slidesTree, standal
     revealPatched = true;
   }
   function onAsqSocketGoto(data) {
-    debug("@@ onAsqSocketGoto @@", data);
     if ("undefined" === typeof data || data === null) {
-      debug("data is undefined or null");
       return;
     }
     if (data._flag === fingerprint) {
       return;
     }
-    if (data.hasOwnProperty("isAutoSliding")) {
+    if (!standalone && data.hasOwnProperty("isAutoSliding")) {
       if (data.isAutoSliding !== Reveal.isAutoSliding()) {
         Reveal.toggleAutoSlide();
       }
     }
-    if (typeof Reveal.goto === "function") {
-      if (data.hasOwnProperty("state")) {
-        Reveal.goto(data.state);
-      } else if (data.hasOwnProperty("step")) {
-        Reveal.goto(data.step);
-      }
+    if (!!window.Reveal && typeof window.Reveal.goto === "function") {
+      Reveal.goto(data.step, data.substepIdx);
       var times = offset;
       while (times-- > 0) {
         Reveal.next();
       }
+    } else if (!standalone) {
+      setTimeout(function () {
+        onAsqSocketGoto(data);
+      }, 200);
+    } else {
+      activeStep = data.step || activeStep;
+      allSubsteps[activeStep].active = Number.isInteger(data.substepIdx) ? data.substepIdx : -1;
     }
   }
   ;
@@ -675,30 +776,32 @@ var asqRevealAdapter = module.exports = function (asqSocket, slidesTree, standal
   }
   function getSubSteps(el) {
     var substeps = toArray(el.querySelectorAll(".fragment"));
-    return substeps.map(function () {
-      return "";
+    return substeps.map(function (sub) {
+      return sub.id;
     });
   }
   function toArray(o) {
     return Array.prototype.slice.call(o);
   }
-  function goto() {
-    var args = toArray(arguments);
-    if (_.isEqual(Reveal.getState(), args[0]))
+  function goto(step, substepIdx) {
+    var indices = window.Reveal.id2Indices(step);
+    if (indices === null) {
       return;
-    if (typeof args[0] === "string") {
-      var steps = getSlidesTree().steps;
-      if (steps.indexOf(args[0]) < 0)
-        return;
-      var indices = window.Reveal.id2Indices(args[0]);
-      if (indices == null)
-        return;
-      window.Reveal.slide(indices.indexh, indices.indexv, indices.indexf);
-    } else if (typeof args[0] === "number") {
-      window.Reveal.slide(args[0], args[1], args[2]);
-    } else if (typeof args[0] === "object" && typeof args[0].indexh == "number") {
-      window.Reveal.setState(args[0]);
     }
+    if (!standalone) {
+      var currentState = window.Reveal.getState();
+      if (_.isEqual(indices2Id(currentState), step) && substepIdx === currentState.indexf) {
+        return;
+      }
+    } else {
+      if (activeStep === step && allSubsteps[activeStep].active === substepIdx) {
+        return;
+      }
+    }
+    activeStep = step || activeStep;
+    allSubsteps[activeStep].active = Number.isInteger(substepIdx) ? substepIdx : -1;
+    indices.f = substepIdx;
+    window.Reveal.slide(indices.h, indices.v, indices.f);
   }
   function indices2Id(h, v, f) {
     if (typeof h == "object") {
@@ -716,7 +819,7 @@ var asqRevealAdapter = module.exports = function (asqSocket, slidesTree, standal
   function id2Indices(id) {
     var slide = document.querySelector("#" + id);
     if (typeof slide == "undefined" || slide == null) {
-      return undefined;
+      return null;
     }
     return Reveal.getIndices(slide);
   }
