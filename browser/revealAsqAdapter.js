@@ -5,37 +5,165 @@ var debug = require('bows')("asqRevealAdapter");
 var initiator = require('./asq-reveal-initiator');
 
 var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalone, offset, role) {
-  if ( insideRevealNote() ) {
+  if ( insideRevealSpeakerNote() ) {
+    // if it is inside the Reveal.js's speaker note，is should not be patched to avoid the bouncing events
+    initiator(role, null);
     return;
   }
-    
   standalone = standalone || false;
   offset = offset || 0;
   slidesTree = slidesTree || getSlidesTree();
 
-  debug('asqRevealAdapter', slidesTree);
+  var steps = null;
+  var allSubsteps = null;
+  var activeStep = null;
 
-  var steps = slidesTree.steps
-  var allSubsteps = slidesTree.allSubsteps;
+  steps = slidesTree.steps;
+  allSubsteps = slidesTree.allSubsteps;
 
   var revealPatched = false;
 
-  var fingerprint = getFingerprint(role);
+  var fingerprint = getFingerprint(standalone ? '_standalone_' : role );
 
   if (! standalone) {
     // patch reveal.js when it's ready
     patchReveal();
+    initiator(role, null);
   } else {
     // TODO  
+    var initStep = role;
+    var firstStep = getElementFromHash() || initStep || steps[0];
+    broadcast(firstStep);
+
+    document.addEventListener('keyup', onKeyUp, false);
   }
 
   asqSocket.onGoto(onAsqSocketGoto);
 
-  initiator(role, null);
-
   return {
-    goto: goto
+    goto: goto,
+    destroy: destroy,
   }
+
+  function onKeyUp(){
+    if(event.target == document.body){
+      if ( event.keyCode === 9 || ( event.keyCode >= 32 && event.keyCode <= 34 ) || (event.keyCode >= 37 && event.keyCode <= 40) ) {
+
+        event.preventDefault();
+
+        switch( event.keyCode ) {
+          case 33: // pg up
+          case 37: // left
+          case 38: // up
+            prev();
+            break;
+          case 9:  // tab
+          case 32: // space
+          case 34: // pg down
+          case 39: // right
+          case 40: // down
+            next();
+            break;
+        }
+      }
+    }
+  }
+
+  // broadcast the goto event from headless mode
+  function broadcast(step, subIdx) {
+    var id = null;
+    if (step === null || typeof step === 'undefined' || 'string'!== typeof (id = getStep(step))) {
+      if((subIdx === null || subIdx === undefined || isNaN(subIdx))){
+        return null;
+      }
+    }
+
+    activeStep = id || activeStep;
+    allSubsteps[activeStep].active = (!isNaN(subIdx)) ? subIdx : -1;
+
+    asqSocket.emitGoto({
+      _flag: fingerprint,
+      step: activeStep,
+      substepIdx: allSubsteps[activeStep].active,
+    });
+    return activeStep;
+  }
+
+  function getStep(step) {
+    if (typeof step === 'number') {
+        step = step < 0 ? steps[ steps.length + step] : steps[ step ];
+    } else if (typeof step === 'string') {
+        step = (steps.indexOf(step) > -1) ? step: null
+    }
+    return step ? step : null;
+  }
+
+  // broadcast the goto event (next) from headless mode
+  function next () {
+    var subactive, substeps;
+    
+    substeps = allSubsteps[activeStep].substeps || [];
+
+    // if we have substeps deal with them first
+    if (substeps.length && ((subactive = allSubsteps[activeStep].active) !== (substeps.length - 1))) {
+      if(isNaN(subactive) || (subactive==null)){
+          subactive = -1;
+      }
+      return broadcast(null, ++subactive);
+    }
+
+    // no substeps or substeps are over. Go to the next step
+    var next = steps.indexOf( activeStep ) + 1;
+    next = next < steps.length ? steps[ next ] : steps[ 0 ];
+
+    return broadcast(next, -1);
+  };
+
+  // broadcast the goto event (prev) from headless mode
+  function prev() {
+    var subactive, substeps;
+    
+    substeps = allSubsteps[activeStep].substeps || [];
+
+    //if we have substeps deal with them first
+    if (substeps.length && ((subactive = allSubsteps[activeStep].active) || (subactive === 0))) {
+      if (subactive >=0) {
+        --subactive; 
+        return broadcast(null, subactive)
+      }
+    }
+
+    //no substeps or we are at the first substep. Go to the previous step
+    var prev = steps.indexOf( activeStep ) - 1;
+    prev = prev >= 0 ? steps[ prev ] : steps[ steps.length-1 ];
+
+    var prevSubsteps = allSubsteps[prev].substeps || [];
+    return broadcast(prev, (prevSubsteps.length -1));
+  };
+
+  function destroy(){
+    if(standalone){
+      document.removeEventListener('keyup', onKeyUp);
+    } else {
+      Reveal.removeEventListener('slidechanged', slideChangedHandler);
+      Reveal.removeEventListener('fragmentshown', slideChangedHandler);
+      Reveal.removeEventListener('fragmenthidden', slideChangedHandler);
+      Reveal.removeEventListener('overviewhidden', slideChangedHandler);
+      Reveal.removeEventListener('overviewshown', slideChangedHandler);
+      Reveal.removeEventListener('paused', slideChangedHandler);
+      Reveal.removeEventListener('resumed', slideChangedHandler);
+    }
+
+    asqSocket.offGoto(onAsqSocketGoto);
+  }
+
+  // `getElementFromHash` returns an element located by id from hash part of
+  // window location.
+  function getElementFromHash() {
+    // get id from url # by removing `#` or `#/` from the beginning,
+    // so both "fallback" `#slide-id` and "enhanced" `#/slide-id` will work
+    return window.location.hash.replace(/^#\/?/,"");
+  };
 
   function getRandomString() {
     return Math.floor((1 + Math.random()) * 0x100000000).toString(16);
@@ -45,8 +173,12 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
     return role + getRandomString() + window.location.pathname + window.location.search;
   }
 
-  function insideRevealNote() {
-    return window.parent !== window.self;
+  function insideRevealSpeakerNote() {
+    // To determine if we're on a reveal.js speaker-notes window we test if the url contains
+    // the search parameter 'receiver'
+    // See https://github.com/ASQ-USI-Elements/examples/blob/master/SamplePresentation-reveal/reveal.js/plugin/notes/notes.html#L283
+
+    return window.location.search.indexOf('receiver') >= 0;
   }
 
   // `patchReveal` patches the reveal.js api so that external scripts
@@ -73,15 +205,17 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
       
       var id = Reveal.indices2Id(state.indexh, state.indexv, state.indexf);
 
-      debug("goto #" + id + ' ( ' + state.indexh + ', ' + state.indexv + ', ' + state.indexf + ' )');
+      activeStep = id;
+      var substepIdx = Number.isInteger(state.indexf) ? state.indexf : -1;
+
       asqSocket.emitGoto({
         _flag: fingerprint,
-        id: id,
-        state: state,
-        isAutoSliding: Reveal.isAutoSliding()
+        step: activeStep,
+        substepIdx: substepIdx,
+        isAutoSliding: Reveal.isAutoSliding(),
       });
 
-      return { id: id, state: state };
+      return activeStep;
     }
 
     if (window.location.search.indexOf('role=presenter') >= 0) {
@@ -98,33 +232,36 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
   }
 
   function onAsqSocketGoto(data){
-    debug('@@ onAsqSocketGoto @@', data);
     if("undefined" === typeof data || data === null){
-      debug("data is undefined or null");
       return;
     }
+
     if ( data._flag === fingerprint ) {
       return
     }
 
-    if (data.hasOwnProperty('isAutoSliding')) {
+    if (!standalone && data.hasOwnProperty('isAutoSliding')) {
       if (data.isAutoSliding !== Reveal.isAutoSliding()) {
         Reveal.toggleAutoSlide()
       }
     }
 
-    if (typeof Reveal.goto === 'function') {
-      if (data.hasOwnProperty('state')) {
-        Reveal.goto(data.state);
-      } else if (data.hasOwnProperty('step')) {
-        Reveal.goto(data.step);
-      }
+    if (!!window.Reveal && typeof window.Reveal.goto === 'function') {
+      Reveal.goto(data.step, data.substepIdx);
 
       var times = offset;
-      while (times-- >0 ){
+      while (times-- >0 ) {
         Reveal.next();
       }
-    }
+    } else if (!standalone) {
+      // if the Reveal has not been patched yet, we will wait for 200ms and check again
+      setTimeout(function() {
+        onAsqSocketGoto(data);
+      }, 200);
+    } else {
+      activeStep = data.step || activeStep;
+      allSubsteps[activeStep].active = Number.isInteger(data.substepIdx) ? data.substepIdx : -1;
+    } 
   };
 
   function getSlidesTree() {
@@ -144,7 +281,6 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
             steps.push(section)
         }
     });
-
     
     steps.forEach(function(slide, index){
         if ( typeof slide.id == 'undefined' || slide.id.trim() == '') {
@@ -167,8 +303,8 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
 
   function getSubSteps(el) {
     var substeps = toArray(el.querySelectorAll('.fragment'));
-    return substeps.map(function() {
-        return ''
+    return substeps.map(function(sub) {
+        return sub.id;
     });
   }
 
@@ -176,33 +312,36 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
     return Array.prototype.slice.call( o );
   }
 
-
   /**
    * A wrapper function used to navigate the slde.
    * The arguments can be either a ID of slide, indices 
    * or an indices object.
    */
-  function goto ( ) {
-    var args = toArray(arguments);
-    if ( _.isEqual(Reveal.getState(), args[0]) ) return;
-    // use case 1: goto('an_id_of_a_slide_without_#')
-    if ( typeof args[0] === 'string' ) {
-      var steps = getSlidesTree().steps;
-      if ( steps.indexOf(args[0]) < 0 ) return;
-      var indices = window.Reveal.id2Indices(args[0]);
-      if ( indices == null ) return;
-      window.Reveal.slide(indices.indexh, indices.indexv, indices.indexf);
-    } 
-    // use case 2: goto(h, v, f)
-    else if ( typeof args[0] === 'number' ) {
-      window.Reveal.slide(args[0], args[1], args[2]);
-    } 
-    // use case 3: goto( state_object )
-    else if ( typeof args[0] === 'object' && typeof args[0].indexh == 'number' ) {
-      window.Reveal.setState(args[0]);
-    } 
-  }
+  function goto (step, substepIdx) {
+    var indices = window.Reveal.id2Indices(step);
 
+    if (indices === null) {
+      return;
+    }
+
+    if (!standalone) {
+      var currentState = window.Reveal.getState();
+      if (_.isEqual(indices2Id(currentState), step) && substepIdx === currentState.indexf) {
+        return;
+      }
+    } else {
+      if (activeStep === step && allSubsteps[activeStep].active === substepIdx) {
+        return;
+      }
+    }
+
+    activeStep = step || activeStep;
+    allSubsteps[activeStep].active = Number.isInteger(substepIdx) ? substepIdx : -1;
+
+    indices.f = substepIdx;
+
+    window.Reveal.slide(indices.h, indices.v, indices.f);
+  }
 
   // Helper function that translates slides indices 
   // into ID.
@@ -226,15 +365,15 @@ var asqRevealAdapter = module.exports = function(asqSocket, slidesTree, standalo
   function id2Indices(id) {
     var slide = document.querySelector('#'+id);
     if ( typeof slide  == 'undefined' || slide == null ) {
-      return undefined
+      return null;
     }
     return Reveal.getIndices(slide);
   }
 
   function getParameterByName(name) {
-  name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
-  var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
-    results = regex.exec(location.search);
-  return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
-}
+    name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
+    var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
+      results = regex.exec(location.search);
+    return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
+  }
 }
