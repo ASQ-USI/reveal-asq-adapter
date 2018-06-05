@@ -30,9 +30,7 @@ module.exports = function(role, params) {
       { src: revealjsPath + 'plugin/highlight/highlight.js', async: false, callback: function() { hljs.initHighlightingOnLoad(); } },
       { src: revealjsPath + 'plugin/zoom-js/zoom.js', async: false },
     ],
-    'presenter-only': [ 
-    // { src: revealjsPath + 'plugin/notes/notes.js', async: false } 
-    ],
+    'presenter-only': [ { src: revealjsPath + 'plugin/notes/notes.js', async: false } ],
     'viewer-only': []
   };
 
