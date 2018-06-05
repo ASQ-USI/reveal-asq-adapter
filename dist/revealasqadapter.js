@@ -505,10 +505,7 @@ module.exports = function (role, params) {
         async: false
       }
     ],
-    "presenter-only": [{
-        src: revealjsPath + "plugin/notes/notes.js",
-        async: false
-      }],
+    "presenter-only": [],
     "viewer-only": []
   };
   var revealSettings = Object.create(null);
