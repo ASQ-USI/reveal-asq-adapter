@@ -570,6 +570,8 @@ var asqRevealAdapter = module.exports = function (asqSocket, slidesTree, standal
   } else {
   }
   asqSocket.onGoto(onAsqSocketGoto);
+  asqSocket.onAddSlide(onAsqSocketAddSlide);
+  asqSocket.onRemoveSlide(onAsqSocketRemoveSlide);
   initiator(role, null);
   return { goto: goto };
   function getRandomString() {
@@ -618,9 +620,16 @@ var asqRevealAdapter = module.exports = function (asqSocket, slidesTree, standal
       Reveal.addEventListener("resumed", slideChangedHandler);
     }
     revealPatched = true;
+    document.dispatchEvent(new CustomEvent("revealPatched", { detail: "haha" }));
   }
   function onAsqSocketGoto(data) {
     debug("@@ onAsqSocketGoto @@", data);
+    if (!revealPatched) {
+      document.addEventListener("revealPatched", function myFunc() {
+        document.removeEventListener("revealPatched", myFunc);
+        onAsqSocketGoto(data);
+      });
+    }
     if ("undefined" === typeof data || data === null) {
       debug("data is undefined or null");
       return;
@@ -646,6 +655,41 @@ var asqRevealAdapter = module.exports = function (asqSocket, slidesTree, standal
     }
   }
   ;
+  function onAsqSocketAddSlide(data) {
+    addSlide(data);
+  }
+  function addSlide(data) {
+    if (!document.getElementById(data.id)) {
+      var dom = {};
+      dom.slides = document.querySelector(".reveal .slides");
+      var newSlide = document.createElement("section");
+      newSlide.style.width = "960px";
+      newSlide.style.height = "700px";
+      if (data.index == document.querySelector(".reveal .slides").children.length) {
+        newSlide.classList.add("future");
+        dom.slides.appendChild(newSlide);
+        document.querySelector(".navigate-right").classList.add("enabled");
+      } else {
+        newSlide.classList.add("future");
+        dom.slides.insertBefore(newSlide, dom.slides.querySelector("section:nth-child(" + (data.index + 1) + ")"));
+      }
+      newSlide.innerHTML = data.content;
+      newSlide.id = data.id;
+      if (!data.getSlides && !data.printing) {
+        if (data.index == document.querySelector(".reveal .slides").children.length - 1) {
+          while (!Reveal.isLastSlide())
+            Reveal.next();
+        } else {
+          Reveal.next();
+        }
+      }
+    }
+  }
+  function onAsqSocketRemoveSlide(data) {
+    var toRemove = document.getElementById(data.id);
+    toRemove.parentNode.removeChild(toRemove);
+    Reveal.prev();
+  }
   function getSlidesTree() {
     var slidesTree = {};
     slidesTree.allSubsteps = {};
@@ -693,7 +737,7 @@ var asqRevealAdapter = module.exports = function (asqSocket, slidesTree, standal
       var indices = window.Reveal.id2Indices(args[0]);
       if (indices == null)
         return;
-      window.Reveal.slide(indices.indexh, indices.indexv, indices.indexf);
+      window.Reveal.slide(indices.h, indices.v, indices.f);
     } else if (typeof args[0] === "number") {
       window.Reveal.slide(args[0], args[1], args[2]);
     } else if (typeof args[0] === "object" && typeof args[0].indexh == "number") {

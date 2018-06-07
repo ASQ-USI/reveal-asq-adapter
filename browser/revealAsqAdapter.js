@@ -98,10 +98,22 @@
 	    }
 
 	    revealPatched = true;
+	    // TODO(triglian) generate a generic event e.g (presentationframeworkpatched)
+	    // instead of a specific one and pass the presentation name in the detail
+	    document.dispatchEvent( new CustomEvent('revealPatched', {detail: "haha"}));
 	  }
 
 	  function onAsqSocketGoto(data){
-	    debug('@@ onAsqSocketGoto @@', data);
+	  	debug('@@ onAsqSocketGoto @@', data);
+
+	  	// If we haven't patched we cannot goto
+	  	if(!revealPatched){
+	  		document.addEventListener('revealPatched', function myFunc(){
+	  			document.removeEventListener('revealPatched', myFunc)
+	  			onAsqSocketGoto(data);
+	  		});
+	  	}
+
 	    if("undefined" === typeof data || data === null){
 	      debug("data is undefined or null");
 	      return;
@@ -236,7 +248,7 @@
 	      if ( steps.indexOf(args[0]) < 0 ) return;
 	      var indices = window.Reveal.id2Indices(args[0]);
 	      if ( indices == null ) return;
-	      window.Reveal.slide(indices.indexh, indices.indexv, indices.indexf);
+	      window.Reveal.slide(indices.h, indices.v, indices.f);
 	    }
 	    // use case 2: goto(h, v, f)
 	    else if ( typeof args[0] === 'number' ) {
